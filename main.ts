@@ -16,32 +16,27 @@ class PayDateCalculator {
     * @param hasDirectDeposit: boolean - A boolean determining whether or not the
     customer receives their paycheck via direct deposit.
     */
+
+    // Static (const) variables at class scope to use in the helper function
+    static readonly LOOP_FORWARD = 1;
+    static readonly LOOP_REVERSE = -1;
+
+
     public calculateDueDate(fundDay: Date, holidays: Date[], paySpan: string,
     payDay: Date, hasDirectDeposit: boolean): Date {
-        const LOOP_FORWARD = 1;
-        const LOOP_BACKWARD = -1;
-        let loopType = LOOP_FORWARD
+        let loopType = PayDateCalculator.LOOP_FORWARD
         let dueDate: Date = payDay; // We start with the 1st Pay Date after Fund Day
-        let returnedDueDate: Boolean = false; 
-        let ddLoopBoolean: Boolean = hasDirectDeposit;
+        let returnedDueDate: Boolean = false;
         let fundDay10: Date = new Date(fundDay);
         fundDay10.setDate(fundDay10.getDate() + 10);
 
+        // Initial call to check for if the inital due date is a weekend or a holiday
+        dueDate = this.adjustDueDate(dueDate, 0, loopType) 
+
         do {
-            if(ddLoopBoolean == false) {
-                loopType = LOOP_FORWARD // Reset loop type in case we landed on a weekend.
-                dueDate = this.adjustDueDate(dueDate, 1, loopType)
-                ddLoopBoolean = true; // Stop this calculation for the next loop iteration.
-            }
+            loopType = PayDateCalculator.LOOP_FORWARD // Reset loop type in case we landed on a weekend.
 
-            // The first problem I encountered with dates in TypeScript. holidays.include()
-            // did not seem to match the dates as expected, likely due to timezones vs UTC. So, using the some() array method to
-            // match the dates in the array directly against dueDate with getTime() to be timezone agnostic.
-            if(holidays.some(holiday => holiday.getTime() === dueDate.getTime())) {
-                loopType = LOOP_BACKWARD; // On weekend, we need to change the looptype to backwards
-                dueDate = this.adjustDueDate(dueDate, 1, loopType)
-            }
-
+            if(!hasDirectDeposit) dueDate = this.adjustDueDate(dueDate, 1, loopType)
 
             if(dueDate < fundDay10) {
                 switch(paySpan) {
@@ -59,7 +54,6 @@ class PayDateCalculator {
                 }
 
                 // Reset variables when we need to restart at the beginning of the flowchart
-                ddLoopBoolean = hasDirectDeposit;
                 dueDate = payDay;
             } else returnedDueDate = true;
         } while(!returnedDueDate)
@@ -71,6 +65,13 @@ class PayDateCalculator {
     private adjustDueDate(dueDate: Date, daysToAdjust: number, loopType: number): any {
         dueDate = new Date(dueDate.setDate(dueDate.getDate() + (daysToAdjust * loopType)))
         if(dueDate.getUTCDay() == 0 || dueDate.getUTCDay() == 6) return this.adjustDueDate(dueDate, 1, loopType) // Weekend check.
+
+        // The first problem I encountered with dates in TypeScript. holidays.include()
+        // did not seem to match the dates as expected, likely due to timezones vs UTC. So, using the some() array method to
+        // match the dates in the array directly against dueDate with getTime() to be timezone agnostic.
+        // After considering edge cases, there are possibilities for consecutive holidays. Putting the holiday check in the recursive function
+        // will save an iteration of the loop
+        if(holidays.some(holiday => holiday.getTime() === dueDate.getTime())) return this.adjustDueDate(dueDate, 1, PayDateCalculator.LOOP_REVERSE) // Holiday check
         else return dueDate
     }
 }
@@ -80,7 +81,7 @@ const calculator = new PayDateCalculator();
 
 // Test parameters | Expected result is August 12th 2024
 const fundDay = new Date('2024-07-30');
-const holidays: Date[] = [new Date('2025-01-01'), new Date('2024-10-31'), new Date('2024-07-29')];
+const holidays: Date[] = [new Date('2025-01-01'), new Date('2024-10-31'), new Date('2024-07-29'), new Date('2024-12-24'), new Date('2024-12-25')];
 const paySpan = 'weekly';
 const payDay = new Date('2024-07-26');
 const hasDirectDeposit = false;
