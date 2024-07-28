@@ -24,19 +24,14 @@ class PayDateCalculator {
 
     public calculateDueDate(fundDay: Date, holidays: Date[], paySpan: string,
     payDay: Date, hasDirectDeposit: boolean): Date {
-        let loopType = PayDateCalculator.LOOP_FORWARD
         let dueDate: Date = payDay; // We start with the 1st Pay Date after Fund Day
         let returnedDueDate: Boolean = false;
         let fundDay10: Date = new Date(fundDay);
         fundDay10.setDate(fundDay10.getDate() + 10);
 
-        // Initial call to check for if the inital due date is a weekend or a holiday
-        dueDate = this.adjustDueDate(dueDate, 0, loopType) 
-
         do {
-            loopType = PayDateCalculator.LOOP_FORWARD // Reset loop type in case we landed on a weekend.
-
-            if(!hasDirectDeposit) dueDate = this.adjustDueDate(dueDate, 1, loopType)
+            if(!hasDirectDeposit) dueDate = this.adjustDueDate(dueDate, 1, PayDateCalculator.LOOP_FORWARD, holidays)
+            else this.adjustDueDate(dueDate, 0, PayDateCalculator.LOOP_FORWARD, holidays) 
 
             if(dueDate < fundDay10) {
                 switch(paySpan) {
@@ -62,16 +57,16 @@ class PayDateCalculator {
 
     // Recursive helper function to do the weekend check as well as to follow DRY.
     // I chose a recursive solution for readability purposes.
-    private adjustDueDate(dueDate: Date, daysToAdjust: number, loopType: number): any {
+    private adjustDueDate(dueDate: Date, daysToAdjust: number, loopType: number, holidays: Date[]): Date {
         dueDate = new Date(dueDate.setDate(dueDate.getDate() + (daysToAdjust * loopType)))
-        if(dueDate.getUTCDay() == 0 || dueDate.getUTCDay() == 6) return this.adjustDueDate(dueDate, 1, loopType) // Weekend check.
+        if(dueDate.getUTCDay() == 0 || dueDate.getUTCDay() == 6) return this.adjustDueDate(dueDate, 1, loopType, holidays) // Weekend check.
 
         // The first problem I encountered with dates in TypeScript. holidays.include()
         // did not seem to match the dates as expected, likely due to timezones vs UTC. So, using the some() array method to
         // match the dates in the array directly against dueDate with getTime() to be timezone agnostic.
         // After considering edge cases, there are possibilities for consecutive holidays. Putting the holiday check in the recursive function
         // will save an iteration of the loop
-        if(holidays.some(holiday => holiday.getTime() === dueDate.getTime())) return this.adjustDueDate(dueDate, 1, PayDateCalculator.LOOP_REVERSE) // Holiday check
+        if(holidays.some(holiday => holiday.getTime() === dueDate.getTime())) return this.adjustDueDate(dueDate, 1, PayDateCalculator.LOOP_REVERSE, holidays) // Holiday check
         else return dueDate
     }
 }
